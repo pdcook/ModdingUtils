@@ -1,16 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Collections.Generic;
 using System.Linq;
 using UnboundLib;
 using Photon.Pun;
-using UnboundLib.Cards;
 using System.Reflection;
 using HarmonyLib;
 using UnboundLib.Networking;
 using UnityEngine;
 using TMPro;
-using ModdingUtils.Extensions;
 using UnityEngine.UI;
 
 namespace ModdingUtils.Utils
@@ -25,7 +21,7 @@ namespace ModdingUtils.Utils
         private static readonly float barlocalScaleMult = 1.1f;
         private static readonly float cardLocalScaleMult = 1f;
 
-        private DictionaryOfLists<Player, CardInfo> cardsToShow = new DictionaryOfLists<Player, CardInfo>() { };
+        private DictionaryOfLists<Player, CardInfo> cardsToShow = new DictionaryOfLists<Player, CardInfo>();
 
         private CardBar[] CardBars
         {
@@ -51,11 +47,11 @@ namespace ModdingUtils.Utils
 
         private void Reset()
         {
-            this.cardsToShow = new DictionaryOfLists<Player, CardInfo>() { };
+            this.cardsToShow = new DictionaryOfLists<Player, CardInfo>();
         }
         private void Reset(Player player)
         {
-            this.cardsToShow[player] = new List<CardInfo>() { };
+            this.cardsToShow[player] = new List<CardInfo>();
         }
 
         public void ShowAtEndOfPhase(Player player, CardInfo card)
@@ -76,7 +72,7 @@ namespace ModdingUtils.Utils
         }
         public void ShowCard(int teamID, CardInfo card)
         {
-            this.ShowCard(teamID, Cards.instance.GetCardID(card));
+            this.ShowCard(teamID, Cards.GetCardID(card));
         }
         public void ShowCard(Player player, int cardID)
         {
@@ -86,24 +82,24 @@ namespace ModdingUtils.Utils
         {
             if (PhotonNetwork.OfflineMode || PhotonNetwork.IsMasterClient)
             {
-                NetworkingManager.RPC(typeof(CardBarUtils), nameof(RPCA_ShowCard), new object[] { teamID, Cards.instance.GetCardWithID(cardID).name });
+                NetworkingManager.RPC(typeof(CardBarUtils), nameof(RPCA_ShowCard), new object[] { teamID, Cards.GetCardWithID(cardID).name });
             }
         }
 
         [UnboundRPC]
         private static void RPCA_ShowCard(int teamID, string cardName)
         {
-            int cardID = Cards.instance.GetCardID(cardName);
+            int cardID = Cards.GetCardID(cardName);
 
             try
             {
-                if (Cards.instance.GetCardWithID(cardID) == null) { return; }
+                if (Cards.GetCardWithID(cardID) == null) { return; }
             }
             catch
             {
                 return;
             }
-            CardBarUtils.instance.PlayersCardBar(teamID).OnHover(Cards.instance.GetCardWithID(cardID), Vector3.zero);
+            CardBarUtils.instance.PlayersCardBar(teamID).OnHover(Cards.GetCardWithID(cardID), Vector3.zero);
             ((GameObject)Traverse.Create(CardBarUtils.instance.PlayersCardBar(teamID)).Field("currentCard").GetValue()).gameObject.transform.localScale = Vector3.one * Utils.CardBarUtils.cardLocalScaleMult;
 
         }
@@ -135,7 +131,7 @@ namespace ModdingUtils.Utils
 
         public GameObject[] GetCardBarSquares(int teamID)
         {
-            List<GameObject> children = new List<GameObject>() { };
+            List<GameObject> children = new List<GameObject>();
 
             foreach (Transform child in this.PlayersCardBar(teamID).transform)
             {
@@ -317,11 +313,11 @@ namespace ModdingUtils.Utils
         }
         public System.Collections.IEnumerator ShowImmediate(Player player, CardInfo card)
         {
-            return this.ShowImmediate(player.teamID, Cards.instance.GetCardID(card));
+            return this.ShowImmediate(player.teamID, Cards.GetCardID(card));
         }
         public System.Collections.IEnumerator ShowImmediate(int teamID, CardInfo card)
         {
-            return this.ShowImmediate(teamID, Cards.instance.GetCardID(card));
+            return this.ShowImmediate(teamID, Cards.GetCardID(card));
         }
         public System.Collections.IEnumerator ShowImmediate(int teamID, int[] cardIDs)
         {
@@ -354,20 +350,20 @@ namespace ModdingUtils.Utils
         }
         public System.Collections.IEnumerator ShowImmediate(int teamID, CardInfo[] cards)
         {
-            List<int> cardIDs = new List<int>() { };
+            List<int> cardIDs = new List<int>();
             foreach (CardInfo card in cards)
             {
-                cardIDs.Add(Cards.instance.GetCardID(card));
+                cardIDs.Add(Cards.GetCardID(card));
             }
 
             return this.ShowImmediate(teamID, cardIDs.ToArray());
         }
         public System.Collections.IEnumerator ShowImmediate(Player player, CardInfo[] cards)
         {
-            List<int> cardIDs = new List<int>() { };
+            List<int> cardIDs = new List<int>();
             foreach (CardInfo card in cards)
             {
-                cardIDs.Add(Cards.instance.GetCardID(card));
+                cardIDs.Add(Cards.GetCardID(card));
             }
 
             return this.ShowImmediate(player.teamID, cardIDs.ToArray());
