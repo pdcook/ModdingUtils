@@ -432,7 +432,7 @@ namespace ModdingUtils.Utils
                 {
                     try
                     {
-                        card.GetComponent<CustomCard>().OnRemoveCard();
+                        card.GetComponent<CustomCard>().OnRemoveCard(player);
                     }
                     catch (NotImplementedException)
                     { }
