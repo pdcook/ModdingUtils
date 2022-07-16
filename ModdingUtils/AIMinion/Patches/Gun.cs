@@ -1,176 +1,163 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using HarmonyLib;
-using UnityEngine;
-using UnboundLib;
+using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using Photon.Pun;
-using UnboundLib.Networking;
-using ModdingUtils.Utils;
+using UnityEngine;
+using HarmonyLib;
 
 namespace ModdingUtils.AIMinion.Patches
 {
-    // patch to ensure the correct gun is obtained for AIs
-    [Serializable]
-    [HarmonyPatch(typeof(Gun), "DoAttack")]
-    class ProjectileInitPatchDoAttack
+    [HarmonyPatch(typeof(ProjectileInit))]
+    class ProjectileInit_PatchGetCorrectPlayerOffline
     {
-        private static bool Prefix(Gun __instance, float charge, bool forceAttack = false, float damageM = 1f, float recoilM = 1f, bool useAmmo = true)
+        [HarmonyTargetMethods]
+        static IEnumerable<MethodBase> RPCMethods()
         {
-            float num = 1f * (1f + charge * __instance.chargeRecoilTo) * recoilM;
-            if ((Rigidbody2D)__instance.GetFieldValue("rig"))
-            {
-                ((Rigidbody2D)__instance.GetFieldValue("rig")).AddForce(((Rigidbody2D)__instance.GetFieldValue("rig")).mass * __instance.recoil * Mathf.Clamp((float)typeof(Gun).GetProperty("usedCooldown", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(__instance), 0f, 1f) * -__instance.transform.up, ForceMode2D.Impulse);
-            }
-            __instance.GetFieldValue("holdable");
-            if ((Action)__instance.GetFieldValue("attackAction") != null)
-            {
-                ((Action)__instance.GetFieldValue("attackAction"))();
-            }
-            // use custom FireBurst method to ensure correct gun is used
-            __instance.StartCoroutine(FireBurst(__instance, charge, forceAttack, damageM, recoilM, useAmmo));
-            return false; // always skip original (TERRIBLE IDEA)
+            //UnityEngine.Debug.Log("Fetching Offline Methods");
+            yield return AccessTools.Method(typeof(ProjectileInit), "OFFLINE_Init");
+            yield return AccessTools.Method(typeof(ProjectileInit), "OFFLINE_Init_SeparateGun");
+            yield return AccessTools.Method(typeof(ProjectileInit), "OFFLINE_Init_noAmmoUse");
         }
 
-        // custom FireBurst method to support multiple players per photon controller
-        private static IEnumerator FireBurst(Gun __instance, float charge, bool forceAttack = false, float damageM = 1f, float recoilM = 1f, bool useAmmo = true)
+        [HarmonyTranspiler]
+        static IEnumerable<CodeInstruction> ConvertToPlayerID(IEnumerable<CodeInstruction> instructions)
         {
-            int currentNumberOfProjectiles = __instance.lockGunToDefault ? 1 : (__instance.numberOfProjectiles + Mathf.RoundToInt(__instance.chargeNumberOfProjectilesTo * charge));
-            if (!__instance.lockGunToDefault)
+            List<CodeInstruction> codes = new List<CodeInstruction>(instructions);
+
+            var getPlayers = AccessTools.Field(typeof(PlayerManager), nameof(PlayerManager.players));
+            var getItem = AccessTools.Method(typeof(List<Player>), "get_Item", new Type[] { typeof(int) });
+
+            var getByPlayerID = AccessTools.Method(typeof(PlayerManager), "GetPlayerWithID", new Type[] { typeof(int) });
+
+            for (int i = 0; i < codes.Count(); i++)
             {
-            }
-            if (__instance.timeBetweenBullets == 0f)
-            {
-                GamefeelManager.GameFeel(__instance.transform.up * __instance.shake);
-                __instance.soundGun.PlayShot(currentNumberOfProjectiles);
-            }
-            int num;
-            for (int ii = 0; ii < Mathf.Clamp(__instance.bursts, 1, 100); ii = num + 1)
-            {
-                for (int i = 0; i < __instance.projectiles.Length; i++)
+                if ((codes[i].opcode == OpCodes.Ldfld) && ((FieldInfo)codes[i].operand == getPlayers) && (codes[i + 1].opcode == OpCodes.Ldarg_1) && (codes[i + 2].opcode == OpCodes.Callvirt) && ((MethodInfo)codes[i + 2].operand == getItem))
                 {
-                    for (int j = 0; j < currentNumberOfProjectiles; j++)
+                    codes.RemoveAt(i);
+                    codes[i + 1] = new CodeInstruction(OpCodes.Callvirt, getByPlayerID);
+                    //UnityEngine.Debug.Log("Using GetPlayerWithID for offline methods now.");
+                }
+            }
+
+            return codes.AsEnumerable();
+        }
+    }
+
+    [HarmonyPatch(typeof(ProjectileInit))]
+    class ProjectileInit_PatchGetCorrectPlayerRPCs
+    {
+        [HarmonyTargetMethods]
+        static IEnumerable<MethodBase> RPCMethods()
+        {
+            //UnityEngine.Debug.Log("Fetching RPC Methods.");
+            yield return AccessTools.Method(typeof(ProjectileInit), "RPCA_Init", new Type[] { typeof(int), typeof(int), typeof(float), typeof(float) });
+            yield return AccessTools.Method(typeof(ProjectileInit), "RPCA_Init_SeparateGun", new Type[] { typeof(int), typeof(int), typeof(int), typeof(float), typeof(float) });
+            yield return AccessTools.Method(typeof(ProjectileInit), "RPCA_Init_noAmmoUse", new Type[] { typeof(int), typeof(int), typeof(float), typeof(float) });
+        }
+
+        [HarmonyTranspiler]
+        static IEnumerable<CodeInstruction> ConvertToPlayerID(IEnumerable<CodeInstruction> instructions)
+        {
+            List<CodeInstruction> codes = new List<CodeInstruction>(instructions);
+
+            var getByActorID = AccessTools.Method(typeof(PlayerManager), "GetPlayerWithActorID", new Type[] { typeof(int) });
+            var getByPlayerID = AccessTools.Method(typeof(PlayerManager), "GetPlayerWithID", new Type[] { typeof(int) });
+
+            foreach (var ins in instructions)
+            {
+                if (!((ins.opcode == OpCodes.Callvirt) && ((MethodInfo)ins.operand == getByActorID)))
+                {
+                    yield return ins;
+                }
+                else
+                {
+                    yield return new CodeInstruction(OpCodes.Callvirt, getByPlayerID);
+                    //UnityEngine.Debug.Log("Using GetPlayerWithID for RPCs now.");
+                }
+            }
+        }
+    }
+
+    [HarmonyPatch]
+    class Gun_PatchSendPlayerID
+    {
+        static Type GetNestedIDoBlockTransitionType()
+        {
+            var nestedTypes = typeof(Gun).GetNestedTypes(BindingFlags.Instance | BindingFlags.NonPublic);
+            Type nestedType = null;
+
+            foreach (var type in nestedTypes)
+            {
+                if (type.Name.Contains("FireBurst"))
+                {
+                    nestedType = type;
+                    break;
+                }
+            }
+
+            return nestedType;
+        }
+        [HarmonyTargetMethod]
+        static MethodBase TargetMethod()
+        {
+            return AccessTools.Method(GetNestedIDoBlockTransitionType(), "MoveNext");
+        }
+
+        [HarmonyTranspiler]
+        static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            List<CodeInstruction> codes = new List<CodeInstruction>(instructions);
+
+            //for (var i = 0; i < codes.Count; i++)
+            //{
+            //    UnityEngine.Debug.Log($"{i}: {codes[i].opcode}, {codes[i].operand}");
+            //}
+
+            //UnityEngine.Debug.Log("Getting Player Data");
+            var getViewComponent = AccessTools.Method(typeof(GameObject), nameof(GameObject.GetComponent), generics: new Type[] { typeof(PhotonView) });
+
+            // Stuff for Getting the player
+
+            var dataPlayer = AccessTools.Field(typeof(CharacterData), nameof(CharacterData.player));
+            var dataView = AccessTools.Field(typeof(CharacterData), nameof(CharacterData.view));
+
+            var playerID = AccessTools.Field(typeof(Player), nameof(Player.playerID));
+
+            // The RPCs to change it for
+            string[] rpcs = new string[] { "RPCA_Init", "RPCA_Init_noAmmoUse", "RPCA_Init_SeparateGun" };
+
+            for (int i = 0; i < codes.Count(); i++)
+            {
+                // Replace the RPC calls with the new ones
+                if (codes[i].opcode == OpCodes.Ldstr && (rpcs.Contains(((string)codes[i].operand))))
+                {
+                    if (!((codes[i - 1].opcode == OpCodes.Callvirt) && ((MethodInfo)codes[i - 1].operand == getViewComponent)))
                     {
-                        if ((bool)typeof(Gun).InvokeMember("CheckIsMine",
-        BindingFlags.Instance | BindingFlags.InvokeMethod |
-        BindingFlags.NonPublic, null, __instance, new object[] { }))
-                        {
-                            __instance.SetFieldValue("spawnPos", __instance.transform.position);
-                            if (__instance.player)
-                            {
-                                __instance.player.GetComponent<PlayerAudioModifyers>().SetStacks();
-                                if (__instance.holdable)
-                                {
-                                    __instance.SetFieldValue("spawnPos", __instance.player.transform.position);
-                                }
-                            }
-                            GameObject gameObject = PhotonNetwork.Instantiate(__instance.projectiles[i].objectToSpawn.gameObject.name, (Vector3)__instance.GetFieldValue("spawnPos"), (Quaternion)typeof(Gun).InvokeMember("getShootRotation", BindingFlags.Instance | BindingFlags.InvokeMethod | BindingFlags.NonPublic, null, __instance, new object[] { j, currentNumberOfProjectiles, charge }), 0, null);
-                            float seed = UnityEngine.Random.Range(0f, 1f);
-                            if (__instance.holdable)
-                            {
-                                if (useAmmo)
-                                {
-                                    if (!PhotonNetwork.OfflineMode)
-                                    {
-                                        NetworkingManager.RPC_Others(typeof(ProjectileInitPatchDoAttack), nameof(RPCO_Init), new object[]
-                                        {
-                                            gameObject.GetComponent<PhotonView>().ViewID,
-                                            __instance.holdable.holder.view.OwnerActorNr,
-                                            __instance.holdable.holder.player.playerID,
-                                            currentNumberOfProjectiles,
-                                            damageM,
-                                            seed
-                                        });
-                                    }
-                                    OFFLINE_Init(gameObject.GetComponent<ProjectileInit>(), __instance.holdable.holder.player.data.view.ControllerActorNr, __instance.holdable.holder.player.playerID, currentNumberOfProjectiles, damageM, seed);
-                                }
-                                else
-                                {
-                                    if (!PhotonNetwork.OfflineMode)
-                                    {
-                                        NetworkingManager.RPC_Others(typeof(ProjectileInitPatchDoAttack), nameof(RPCO_Init_noAmmoUse), new object[]
-                                        {
-                                            gameObject.GetComponent<PhotonView>().ViewID,
-                                            __instance.holdable.holder.view.OwnerActorNr,
-                                            __instance.holdable.holder.player.playerID,
-                                            currentNumberOfProjectiles,
-                                            damageM,
-                                            seed
-                                        });
-                                    }
-                                    OFFLINE_Init_noAmmoUse(gameObject.GetComponent<ProjectileInit>(), __instance.holdable.holder.player.data.view.ControllerActorNr, __instance.holdable.holder.player.playerID, currentNumberOfProjectiles, damageM, seed);
-                                }
-                            }
-                            else
-                            {
-                                if (!PhotonNetwork.OfflineMode)
-                                {
-                                    NetworkingManager.RPC_Others(typeof(ProjectileInitPatchDoAttack), nameof(RPCO_Init_SeparateGun), new object[]
-                                    {
-                                            gameObject.GetComponent<PhotonView>().ViewID,
-                                            __instance.GetComponentInParent<CharacterData>().view.OwnerActorNr,
-                                            __instance.GetComponentInParent<CharacterData>().player.playerID,
-                                            (int)__instance.GetFieldValue("gunID"),
-                                            currentNumberOfProjectiles,
-                                            damageM,
-                                            seed
-                                    });
-                                }
-                                OFFLINE_Init_SeparateGun(gameObject.GetComponent<ProjectileInit>(), __instance.GetComponentInParent<CharacterData>().view.ControllerActorNr, __instance.GetComponentInParent<CharacterData>().player.playerID, (int)__instance.GetFieldValue("gunID"), currentNumberOfProjectiles, damageM, seed);
-
-                            }
-                        }
-                        if (__instance.timeBetweenBullets != 0f)
-                        {
-                            GamefeelManager.GameFeel(__instance.transform.up * __instance.shake);
-                            __instance.soundGun.PlayShot(currentNumberOfProjectiles);
-                        }
+                        continue;
                     }
+
+                    while (!(codes[i].opcode == OpCodes.Ldfld && ((FieldInfo)codes[i].operand == dataView)))
+                    {
+                        i++;
+                    }
+
+                    codes[i] = new CodeInstruction(OpCodes.Ldfld, dataPlayer);
+                    codes[i + 1] = new CodeInstruction(OpCodes.Ldfld, playerID);
+
                 }
-                if (__instance.bursts > 1 && ii + 1 == Mathf.Clamp(__instance.bursts, 1, 100))
-                {
-                    __instance.soundGun.StopAutoPlayTail();
-                }
-                if (__instance.timeBetweenBullets > 0f)
-                {
-                    yield return new WaitForSeconds(__instance.timeBetweenBullets);
-                }
-                num = ii;
             }
-            yield break;
+
+            //for (int i = 0; i < codes.Count; i++)
+            //{
+            //    UnityEngine.Debug.Log($"{i}: {codes[i].opcode}, {codes[i].operand}");
+            //}
+
+            return codes.AsEnumerable();
         }
-        // custom bullet init methods to support multiple players on a single photon connection
-        [UnboundRPC]
-        private static void RPCO_Init(int viewID, int senderActorID, int playerID, int nrOfProj, float dmgM, float randomSeed)
-        {
-            ProjectileInit __instance = PhotonView.Find(viewID).gameObject.GetComponent<ProjectileInit>();
-            FindPlayer.GetPlayerWithActorAndPlayerIDs(senderActorID, playerID).data.weaponHandler.gun.BulletInit(__instance.gameObject, nrOfProj, dmgM, randomSeed, true);
-        }
-        private static void OFFLINE_Init(ProjectileInit __instance, int senderActorID, int playerID, int nrOfProj, float dmgM, float randomSeed)
-        {
-            FindPlayer.GetPlayerWithActorAndPlayerIDs(senderActorID, playerID).data.weaponHandler.gun.BulletInit(__instance.gameObject, nrOfProj, dmgM, randomSeed, true);
-        }
-        [UnboundRPC]
-        private static void RPCO_Init_SeparateGun(int viewID, int senderActorID, int playerID, int gunID, int nrOfProj, float dmgM, float randomSeed)
-        {
-            ProjectileInit __instance = PhotonView.Find(viewID).gameObject.GetComponent<ProjectileInit>();
-            ((Gun)typeof(ProjectileInit).InvokeMember("GetChildGunWithID", BindingFlags.Instance | BindingFlags.InvokeMethod | BindingFlags.NonPublic, null, __instance, new object[] { gunID, FindPlayer.GetPlayerWithActorAndPlayerIDs(senderActorID, playerID).gameObject })).BulletInit(__instance.gameObject, nrOfProj, dmgM, randomSeed, true);
-        }
-        private static void OFFLINE_Init_SeparateGun(ProjectileInit __instance, int senderActorID, int playerID, int gunID, int nrOfProj, float dmgM, float randomSeed)
-        {
-            ((Gun)typeof(ProjectileInit).InvokeMember("GetChildGunWithID", BindingFlags.Instance | BindingFlags.InvokeMethod | BindingFlags.NonPublic, null, __instance, new object[] { gunID, FindPlayer.GetPlayerWithActorAndPlayerIDs(senderActorID, playerID).gameObject })).BulletInit(__instance.gameObject, nrOfProj, dmgM, randomSeed, true);
-        }
-        [UnboundRPC]
-        private static void RPCO_Init_noAmmoUse(int viewID, int senderActorID, int playerID, int nrOfProj, float dmgM, float randomSeed)
-        {
-            ProjectileInit __instance = PhotonView.Find(viewID).gameObject.GetComponent<ProjectileInit>();
-            FindPlayer.GetPlayerWithActorAndPlayerIDs(senderActorID, playerID).data.weaponHandler.gun.BulletInit(__instance.gameObject, nrOfProj, dmgM, randomSeed, false);
-        }
-        private static void OFFLINE_Init_noAmmoUse(ProjectileInit __instance, int senderActorID, int playerID, int nrOfProj, float dmgM, float randomSeed)
-        {
-            FindPlayer.GetPlayerWithActorAndPlayerIDs(senderActorID, playerID).data.weaponHandler.gun.BulletInit(__instance.gameObject, nrOfProj, dmgM, randomSeed, false);
-        }
+
+
     }
 }
