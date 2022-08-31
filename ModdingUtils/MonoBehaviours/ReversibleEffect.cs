@@ -46,34 +46,9 @@ namespace ModdingUtils.MonoBehaviours
                     return 1;
                 }
             }
-            set
-            { }
         }
 
         public void Awake()
-        {
-            OnAwake();
-        }
-        public virtual void OnAwake()
-        {
-
-        }
-
-        public void OnEnable()
-        {
-            if (livesEffected >= livesToEffect)
-            {
-                Destroy(this);
-            }
-            OnOnEnable();
-        }
-
-        public virtual void OnOnEnable()
-        {
-
-        }
-
-        public void Start()
         {
             player = gameObject.GetComponentInParent<Player>();
             gun = player.GetComponent<Holding>().holdable.GetComponent<Gun>();
@@ -83,7 +58,22 @@ namespace ModdingUtils.MonoBehaviours
             block = player.GetComponent<Block>();
             gunAmmo = gun.GetComponentInChildren<GunAmmo>();
             characterStatModifiers = player.GetComponent<CharacterStatModifiers>();
+            OnAwake();
+        }
+        public virtual void OnAwake() { }
 
+        public void OnEnable()
+        {
+            if (livesEffected >= livesToEffect)
+            {
+                Destroy(this);
+            }
+            OnOnEnable();
+        }
+        public virtual void OnOnEnable() { }
+
+        public void Start()
+        {
             wasActiveLastFrame = Utils.PlayerStatus.PlayerAliveAndSimulated(player);
 
             OnStart();
@@ -113,10 +103,8 @@ namespace ModdingUtils.MonoBehaviours
         {
             OnFixedUpdate();
         }
-        public virtual void OnFixedUpdate()
-        {
+        public virtual void OnFixedUpdate() { }
 
-        }
         void Update()
         {
             if (wasActiveLastFrame && !Utils.PlayerStatus.PlayerAliveAndSimulated(player))
@@ -132,22 +120,18 @@ namespace ModdingUtils.MonoBehaviours
 
             OnUpdate();
         }
-        public virtual void OnUpdate()
-        {
+        public virtual void OnUpdate() { }
 
-        }
         public void LateUpdate()
         {
             wasActiveLastFrame = Utils.PlayerStatus.PlayerAliveAndSimulated(player);
 
             OnLateUpdate();
         }
-        public virtual void OnLateUpdate()
-        {
-        }
+        public virtual void OnLateUpdate() { }
+
         public void OnDisable()
         {
-
             livesEffected++;
 
             if (livesEffected >= livesToEffect)
@@ -158,20 +142,18 @@ namespace ModdingUtils.MonoBehaviours
             OnOnDisable();
 
         }
-        public virtual void OnOnDisable()
-        {
+        public virtual void OnOnDisable() { }
 
-        }
         public void OnDestroy()
         {
             ClearModifiers();
             OnOnDestroy();
 		}
-
         public virtual void OnOnDestroy()
         {
             // derived effects should put any necessary cleanup here
         }
+
         public void ApplyModifiers()
         {
             if (modifiersActive) { return; }
@@ -183,6 +165,7 @@ namespace ModdingUtils.MonoBehaviours
             blockModifier.ApplyBlockModifier(block);
             modifiersActive = true;
         }
+
         public void ClearModifiers(bool clear = true)
         {
             if (!modifiersActive) { return; }
@@ -193,8 +176,8 @@ namespace ModdingUtils.MonoBehaviours
             gravityModifier.RemoveGravityModifier(gravity, clear);
             blockModifier.RemoveBlockModifier(block, clear);
             modifiersActive = false;
-
         }
+
         public void Destroy()
         {
             ClearModifiers();
@@ -205,6 +188,5 @@ namespace ModdingUtils.MonoBehaviours
         {
             livesToEffect = lives;
         }
-
     }
 }
