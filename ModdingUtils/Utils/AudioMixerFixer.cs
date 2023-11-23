@@ -26,6 +26,11 @@ namespace ModdingUtils.Utils
 
         private AudioMixerGroup audioGroup;
 
+        public void RunFix()
+        {
+            this.Awake();
+        }
+
         void Awake()
         {
             audioGroup = SoundVolumeManager.Instance.audioMixer.FindMatchingGroups(groupNames[type])[0];

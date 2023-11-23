@@ -30,13 +30,12 @@ namespace ModdingUtils
         private void Awake()
         {
             new Harmony(ModId).PatchAll();
+            gameObject.AddComponent<InterfaceGameModeHooksManager>();
         }
         private void Start()
         {
             // register credits with unbound
             Unbound.RegisterCredits(ModName, new string[] { "Pykess", "BossSloth (Migration of several tools from PCE)", "Willuwontu (game mode hooks interface)" }, new string[] { "github", "Support Pykess" }, new string[] { "https://github.com/Rounds-Modding/ModdingUtils", "https://ko-fi.com/pykess" });
-
-            gameObject.AddComponent<InterfaceGameModeHooksManager>();
 
             GameModeManager.AddHook(GameModeHooks.HookPickEnd, (gm) => EndPickPhaseShow());
 
@@ -68,6 +67,20 @@ namespace ModdingUtils
 
             ((GameObject)Resources.Load("Bullet_EMP")).AddComponent<StopRecursion>();
             ((GameObject)Resources.Load("Bullet_NoTrail")).AddComponent<StopRecursion>();
+
+            this.ExecuteAfterSeconds(5f, () =>
+            {
+                GameObject[] allObj = Resources.FindObjectsOfTypeAll<GameObject>();
+
+                foreach (GameObject obj in allObj)
+                {
+                    Utils.AudioMixerFixer[] audioFixers = obj.GetComponentsInChildren<Utils.AudioMixerFixer>();
+                    foreach (var fixer in audioFixers)
+                    {
+                        fixer.RunFix();
+                    }
+                }
+            });
         }
 
         private IEnumerator EndPickPhaseShow()

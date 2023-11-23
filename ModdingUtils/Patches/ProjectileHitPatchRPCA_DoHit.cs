@@ -44,6 +44,8 @@ namespace ModdingUtils.Patches
             }
 
 			HitInfo hitInfo = new HitInfo();
+			hitInfo.point = hitPoint;
+			hitInfo.normal = hitNormal;
 			hitInfo.collider = null;
 			if (viewID != -1)
 			{
@@ -124,8 +126,9 @@ namespace ModdingUtils.Patches
 					{
 						ObjectsToSpawn.SpawnObject(__instance.transform, hitInfo, __instance.objectsToSpawn[i], healthHandler, __instance.team, __instance.damage, (SpawnedAttack)Traverse.Create(__instance).Field("spawnedAttack").GetValue(), false);
 					}
-					//__instance.transform.position = hitInfo.point + hitInfo.normal * 0.01f;
+					__instance.transform.position = hitInfo.point + hitInfo.normal * 0.01f;
 				}
+
 				bool flag = false;
 				if (__instance.effects != null && __instance.effects.Count != 0)
 				{
@@ -155,8 +158,8 @@ namespace ModdingUtils.Patches
 					((Action<HitInfo>)Traverse.Create(__instance).Field("hitActionWithData").GetValue())(hitInfo);
 				}
 
-
-				UnityEngine.GameObject.Destroy(__instance);
+				__instance.gameObject.SetActive(false);
+				PhotonNetwork.Destroy(__instance.gameObject);
 			}
 
 			return;

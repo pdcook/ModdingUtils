@@ -14,6 +14,7 @@ using TMPro;
 using ModdingUtils.Extensions;
 using UnboundLib.Utils;
 using ModdingUtils.Patches;
+using ModdingUtils.MonoBehaviours;
 
 namespace ModdingUtils.Utils
 {
@@ -926,9 +927,25 @@ namespace ModdingUtils.Utils
 
             bool customFlags = true;
 
+            //for (int i = 0; i < cardValidationFunctions.Count; i++)
+            //{
+            //    try
+            //    {
+            //        customFlags = cardValidationFunctions[i](player, card);
+            //    }
+            //    catch (Exception e)
+            //    {
+            //        UnityEngine.Debug.LogException(e);
+            //    }
+            //    if (!customFlags)
+            //    {
+            //        break;
+            //    }
+            //}
+
             if (cardValidationFunctions.Count > 0)
             {
-                customFlags = !(cardValidationFunctions.Any(f => { bool flag = true; try { flag = f(player, card); } catch { flag = true; } return !flag; }));
+                customFlags = !(cardValidationFunctions.Any(f => { bool flag = true; try { flag = f(player, card); } catch (Exception e) { flag = true; UnityEngine.Debug.LogError("Card Validation Function threw an error, returning true instead. See Log below for details."); UnityEngine.Debug.LogException(e); } return !flag; }));
             }
 
             return !blacklisted && (card.allowMultiple || player.data.currentCards.All(cardinfo => cardinfo.gameObject.name != card.gameObject.name)) && customFlags;
@@ -1051,7 +1068,12 @@ namespace ModdingUtils.Utils
         }
         public CardInfo GetCardWithObjectName(string name)
         {
-            return allCards.Where(card => card.name == name).First();
+            CardInfo card = allCards.Where(card => card.name == name).FirstOrDefault();
+            if (!card)
+            {
+                card = HiddenCards.Where(card => card.name == name).FirstOrDefault();
+            }
+            return card;
         }
         public CardInfo[] GetAllCardsWithCondition(CardChoice cardChoice, Player player, Func<CardInfo, Player, bool> condition)
         {

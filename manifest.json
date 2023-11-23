@@ -9,6 +9,7 @@
 	"BepInEx-BepInExPack_ROUNDS-5.4.1100",
 	"Pykess-PlayerJumpPatch-0.0.2",
 	"Pykess-LegRaycastersPatch-0.0.0",
-	"willuwontu-RespawnPatch-1.0.6"
+	"willuwontu-RespawnPatch-1.0.6",
+	"willuwontu-AttackLevelPatch-0.0.0"
     ]
 }
