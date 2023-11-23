@@ -1,15 +1,15 @@
 {
     "name": "ModdingUtils",
-    "version_number": "0.4.7",
+    "version_number": "0.4.8",
     "website_url": "https://github.com/pdcook/ModdingUtils",
     "description": "Utilities aimed at making modding easier and more accessible",
     "dependencies": [
-	"willis81808-UnboundLib-3.1.0",
-	"willis81808-MMHook-1.0.0",
-	"BepInEx-BepInExPack_ROUNDS-5.4.1100",
-	"Pykess-PlayerJumpPatch-0.0.2",
-	"Pykess-LegRaycastersPatch-0.0.0",
-	"willuwontu-RespawnPatch-1.0.6",
-	"willuwontu-AttackLevelPatch-0.0.0"
+        "willis81808-UnboundLib-3.1.0",
+        "willis81808-MMHook-1.0.0",
+        "BepInEx-BepInExPack_ROUNDS-5.4.1100",
+        "Pykess-PlayerJumpPatch-0.0.2",
+        "Pykess-LegRaycastersPatch-0.0.0",
+        "willuwontu-RespawnPatch-1.0.6",
+        "willuwontu-AttackLevelPatch-0.0.0"
     ]
 }
